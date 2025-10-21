@@ -1,0 +1,15 @@
+# File: pyproject.toml
+[tool.poetry]
+name = "hyperliquid-trader"
+version = "0.1.0"
+description = "A simple trading server for Hyperliquid."
+authors = ["Alain <alain@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+hyperliquid-python-sdk = "^0.20.0"
+Flask = "^3.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
