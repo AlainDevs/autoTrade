@@ -88,6 +88,38 @@ class TradingService:
         else:
             raise ValueError(f"Unsupported action: {action}")
 
+    def _check_existing_position(self, coin):
+        """
+        Checks if there's an existing position for the given coin.
+        
+        Returns:
+            dict with 'has_position', 'is_long', and 'size' keys, or None if no position
+        """
+        try:
+            user_state = self.info.user_state(self.address)
+            positions = user_state.get("assetPositions", [])
+            coin_position = next((p for p in positions if p["position"]["coin"] == coin), None)
+            
+            if coin_position:
+                position_data = coin_position["position"]
+                position_size = float(position_data["szi"])
+                
+                # Positive size = long, negative size = short
+                is_long = position_size > 0
+                
+                return {
+                    "has_position": True,
+                    "is_long": is_long,
+                    "size": abs(position_size),
+                    "position_data": position_data
+                }
+            
+            return {"has_position": False}
+        except Exception as e:
+            logging.error(f"Error checking existing position for {coin}: {e}")
+            # On error, assume no position to avoid blocking legitimate trades
+            return {"has_position": False}
+    
     def _open_position(self, data):
         """Opens a market position with optional leverage, TP, and SL."""
         coin = data["coin"]
@@ -95,6 +127,44 @@ class TradingService:
         size_usd = float(data["size_usd"])
         leverage = int(data.get("leverage", 10))
         slippage = float(data.get("slippage", 0.05))
+        
+        # Check for existing positions before placing order
+        existing_position = self._check_existing_position(coin)
+        
+        if existing_position["has_position"]:
+            existing_direction = "LONG" if existing_position["is_long"] else "SHORT"
+            requested_direction = "LONG" if is_buy else "SHORT"
+            
+            # Reject if trying to open position in same direction (already have position)
+            if existing_position["is_long"] == is_buy:
+                logging.warning(
+                    f"Order rejected for {coin}: Already have {existing_direction} position "
+                    f"(size: {existing_position['size']}). Cannot open another {requested_direction} position."
+                )
+                return {
+                    "error": "Position already exists",
+                    "coin": coin,
+                    "existing_direction": existing_direction,
+                    "existing_size": existing_position['size'],
+                    "requested_direction": requested_direction,
+                    "message": f"Already have a {existing_direction} position for {coin}. Close it first before opening a new position."
+                }
+            
+            # Reject if trying to open opposite direction (one-way trading only)
+            else:
+                logging.warning(
+                    f"Order rejected for {coin}: One-way trading only. "
+                    f"Have {existing_direction} position (size: {existing_position['size']}), "
+                    f"cannot open {requested_direction} position."
+                )
+                return {
+                    "error": "Opposite position exists - one-way trading only",
+                    "coin": coin,
+                    "existing_direction": existing_direction,
+                    "existing_size": existing_position['size'],
+                    "requested_direction": requested_direction,
+                    "message": f"One-way trading only. You have a {existing_direction} position for {coin}. Close it first before opening a {requested_direction} position."
+                }
 
         logging.info(f"Setting leverage for {coin} to {leverage}x")
         self.exchange.update_leverage(leverage, coin, is_cross=True)
