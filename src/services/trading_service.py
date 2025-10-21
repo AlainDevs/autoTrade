@@ -127,6 +127,7 @@ class TradingService:
         size_usd = float(data["size_usd"])
         leverage = int(data.get("leverage", 10))
         slippage = float(data.get("slippage", 0.05))
+        is_cross = data.get("is_cross", False)  # Default to isolated mode
         
         # Check for existing positions before placing order
         existing_position = self._check_existing_position(coin)
@@ -166,8 +167,9 @@ class TradingService:
                     "message": f"One-way trading only. You have a {existing_direction} position for {coin}. Close it first before opening a {requested_direction} position."
                 }
 
-        logging.info(f"Setting leverage for {coin} to {leverage}x")
-        self.exchange.update_leverage(leverage, coin, is_cross=True)
+        margin_mode = "cross" if is_cross else "isolated"
+        logging.info(f"Setting leverage for {coin} to {leverage}x ({margin_mode} mode)")
+        self.exchange.update_leverage(leverage, coin, is_cross=is_cross)
 
         # Get asset metadata to determine correct decimal precision
         meta = self.info.meta()
