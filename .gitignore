@@ -1,2 +1,5 @@
 config.json
 poetry.lock
+__pycache__
+
+src/__pycache__/
