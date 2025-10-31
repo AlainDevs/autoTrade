@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoTrade - Trading Dashboard</title>
+    <link rel="stylesheet" href="css/dashboard.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header Section -->
+        <header class="dashboard-header">
+            <div class="header-content">
+                <h1 class="dashboard-title">
+                    <span class="title-icon">📊</span>
+                    AutoTrade Dashboard
+                </h1>
+                <div class="header-actions">
+                    <button id="refreshBtn" class="refresh-btn" title="Refresh Data">
+                        <span class="refresh-icon">🔄</span>
+                        Refresh
+                    </button>
+                    <div class="last-updated">
+                        Last updated: <span id="lastUpdated">--</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Loading Overlay -->
+        <div id="loadingOverlay" class="loading-overlay">
+            <div class="loading-spinner"></div>
+            <p>Loading trading data...</p>
+        </div>
+
+        <!-- Error Message -->
+        <div id="errorMessage" class="error-message hidden">
+            <span class="error-icon">⚠️</span>
+            <span id="errorText">Error loading data</span>
+            <button id="retryBtn" class="retry-btn">Retry</button>
+        </div>
+
+        <!-- Main Dashboard Content -->
+        <main class="dashboard-main">
+            <!-- Statistics Cards Section -->
+            <section class="stats-section">
+                <h2 class="section-title">Trading Overview</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">💰</div>
+                        <div class="stat-content">
+                            <h3 class="stat-title">Total P&L</h3>
+                            <p class="stat-value" id="totalPnl">$--</p>
+                            <span class="stat-change" id="pnlChange">--</span>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon">🎯</div>
+                        <div class="stat-content">
+                            <h3 class="stat-title">Success Rate</h3>
+                            <p class="stat-value" id="successRate">--%</p>
+                            <span class="stat-subtitle" id="completedTrades">-- completed trades</span>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon">📈</div>
+                        <div class="stat-content">
+                            <h3 class="stat-title">Total Trades</h3>
+                            <p class="stat-value" id="totalTrades">--</p>
+                            <span class="stat-subtitle">
+                                <span id="buyTrades">--</span> buy / <span id="sellTrades">--</span> sell
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon">💵</div>
+                        <div class="stat-content">
+                            <h3 class="stat-title">Total Volume</h3>
+                            <p class="stat-value" id="totalVolume">$--</p>
+                            <span class="stat-subtitle" id="accountBalance">Account: $--</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Charts Section -->
+            <section class="charts-section">
+                <h2 class="section-title">Performance Charts</h2>
+                <div class="charts-grid">
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3 class="chart-title">Trading Volume Over Time</h3>
+                            <div class="chart-controls">
+                                <select id="volumePeriod" class="period-selector">
+                                    <option value="7">Last 7 days</option>
+                                    <option value="30" selected>Last 30 days</option>
+                                    <option value="90">Last 90 days</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="chart-wrapper">
+                            <canvas id="volumeChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3 class="chart-title">Cumulative P&L</h3>
+                            <div class="chart-controls">
+                                <select id="pnlPeriod" class="period-selector">
+                                    <option value="7">Last 7 days</option>
+                                    <option value="30" selected>Last 30 days</option>
+                                    <option value="90">Last 90 days</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="chart-wrapper">
+                            <canvas id="pnlChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Recent Trades Section -->
+            <section class="trades-section">
+                <div class="trades-header">
+                    <h2 class="section-title">Recent Trades</h2>
+                    <div class="trades-controls">
+                        <select id="symbolFilter" class="symbol-filter">
+                            <option value="">All Symbols</option>
+                        </select>
+                        <select id="tradesLimit" class="limit-selector">
+                            <option value="25">25 trades</option>
+                            <option value="50" selected>50 trades</option>
+                            <option value="100">100 trades</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <table class="trades-table" id="tradesTable">
+                        <thead>
+                            <tr>
+                                <th class="sortable" data-sort="trade_timestamp">
+                                    Time <span class="sort-indicator">↕️</span>
+                                </th>
+                                <th class="sortable" data-sort="symbol">
+                                    Symbol <span class="sort-indicator">↕️</span>
+                                </th>
+                                <th class="sortable" data-sort="trade_type">
+                                    Type <span class="sort-indicator">↕️</span>
+                                </th>
+                                <th class="sortable" data-sort="amount">
+                                    Amount <span class="sort-indicator">↕️</span>
+                                </th>
+                                <th class="sortable" data-sort="price">
+                                    Price <span class="sort-indicator">↕️</span>
+                                </th>
+                                <th class="sortable" data-sort="total_value">
+                                    Total Value <span class="sort-indicator">↕️</span>
+                                </th>
+                                <th class="sortable" data-sort="status">
+                                    Status <span class="sort-indicator">↕️</span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="tradesTableBody">
+                            <!-- Trades will be populated by JavaScript -->
+                            <tr class="no-data">
+                                <td colspan="7">Loading trades...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="pagination-container">
+                    <div class="pagination-info">
+                        Showing <span id="tradesCount">0</span> trades
+                    </div>
+                    <button id="loadMoreBtn" class="load-more-btn hidden">Load More</button>
+                </div>
+            </section>
+
+            <!-- Symbol Breakdown Section -->
+            <section class="symbols-section">
+                <h2 class="section-title">Trading Symbols</h2>
+                <div class="symbols-grid" id="symbolsGrid">
+                    <!-- Symbol cards will be populated by JavaScript -->
+                    <div class="symbol-card placeholder">
+                        <h4>Loading symbols...</h4>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="dashboard-footer">
+            <div class="footer-content">
+                <p>&copy; 2024 AutoTrade Dashboard. Connected to Hyperliquid Exchange.</p>
+                <div class="connection-status">
+                    <span class="status-indicator" id="connectionStatus">🔴</span>
+                    <span id="connectionText">Checking connection...</span>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- JavaScript Modules -->
+    <script src="js/api.js"></script>
+    <script src="js/charts.js"></script>
+    <script src="js/dashboard.js"></script>
+</body>
+</html>

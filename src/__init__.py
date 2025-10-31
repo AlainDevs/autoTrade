@@ -22,9 +22,11 @@ def create_app():
         # Import and register Blueprints
         from .routes import webhook_routes
         from .routes import balance_routes
+        from .routes import dashboard_routes
 
         app.register_blueprint(webhook_routes.webhook_bp)
         app.register_blueprint(balance_routes.balance_bp)
+        app.register_blueprint(dashboard_routes.dashboard_bp)
 
     # A simple health check / welcome endpoint
     @app.route('/')
