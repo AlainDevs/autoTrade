@@ -4,8 +4,34 @@ from flask import Blueprint, jsonify, current_app, request, send_from_directory,
 import logging
 import os
 from datetime import datetime, timedelta
+from functools import wraps
 
 dashboard_bp = Blueprint('dashboard', __name__)
+
+def add_cors_headers(response):
+    """Add CORS headers to response"""
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    return response
+
+def cors_enabled(f):
+    """Decorator to add CORS headers to routes"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if request.method == 'OPTIONS':
+            response = jsonify({})
+            return add_cors_headers(response)
+        
+        result = f(*args, **kwargs)
+        if isinstance(result, tuple):
+            response = jsonify(result[0])
+            response.status_code = result[1] if len(result) > 1 else 200
+        else:
+            response = result
+        
+        return add_cors_headers(response)
+    return decorated_function
 
 @dashboard_bp.route('/dashboard')
 def serve_dashboard():
@@ -33,7 +59,8 @@ def serve_dashboard_assets(filename):
             "message": f"Asset {filename} not found"
         }), 404
 
-@dashboard_bp.route('/api/trading-stats')
+@dashboard_bp.route('/api/trading-stats', methods=['GET', 'OPTIONS'])
+@cors_enabled
 def get_trading_stats():
     """Get comprehensive trading statistics."""
     service = current_app.trading_service
@@ -60,7 +87,8 @@ def get_trading_stats():
             "details": str(e)
         }), 500
 
-@dashboard_bp.route('/api/trade-history')
+@dashboard_bp.route('/api/trade-history', methods=['GET', 'OPTIONS'])
+@cors_enabled
 def get_trade_history():
     """Get trade history with optional filtering."""
     service = current_app.trading_service
@@ -99,7 +127,8 @@ def get_trade_history():
             "details": str(e)
         }), 500
 
-@dashboard_bp.route('/api/chart-data')
+@dashboard_bp.route('/api/chart-data', methods=['GET', 'OPTIONS'])
+@cors_enabled
 def get_chart_data():
     """Get formatted data for charts (volume and P&L over time)."""
     service = current_app.trading_service
@@ -195,7 +224,8 @@ def get_chart_data():
             "details": str(e)
         }), 500
 
-@dashboard_bp.route('/api/account-summary')
+@dashboard_bp.route('/api/account-summary', methods=['GET', 'OPTIONS'])
+@cors_enabled
 def get_account_summary():
     """Get current account balance and summary."""
     service = current_app.trading_service

@@ -288,8 +288,8 @@ class TradingDashboard {
 
         // Apply sorting
         filteredTrades.sort((a, b) => {
-            const field = this.currentSort.field;
-            const direction = this.currentSort.direction;
+            const field = this.currentTradeSort.field;
+            const direction = this.currentTradeSort.direction;
             
             let aVal = a[field];
             let bVal = b[field];
@@ -355,11 +355,11 @@ class TradingDashboard {
      * Handle table sorting
      */
     handleSort(field) {
-        if (this.currentSort.field === field) {
-            this.currentSort.direction = this.currentSort.direction === 'asc' ? 'desc' : 'asc';
+        if (this.currentTradeSort.field === field) {
+            this.currentTradeSort.direction = this.currentTradeSort.direction === 'asc' ? 'desc' : 'asc';
         } else {
-            this.currentSort.field = field;
-            this.currentSort.direction = 'desc';
+            this.currentTradeSort.field = field;
+            this.currentTradeSort.direction = 'desc';
         }
 
         // Update sort indicators
@@ -367,7 +367,7 @@ class TradingDashboard {
             const indicator = th.querySelector('.sort-indicator');
             if (indicator) {
                 if (th.dataset.sort === field) {
-                    indicator.textContent = this.currentSort.direction === 'asc' ? '↑' : '↓';
+                    indicator.textContent = this.currentTradeSort.direction === 'asc' ? '↑' : '↓';
                 } else {
                     indicator.textContent = '↕️';
                 }

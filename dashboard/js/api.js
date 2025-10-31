@@ -1,14 +1,14 @@
 // API Module - Handles all communication with the Flask backend
 class TradingAPI {
     constructor(baseURL = '') {
-        // Default to the provided domain, fallback to localhost
-        this.defaultBaseURL = 'https://28791--main--hypertrade--admin.coder.000164.xyz';
+        // Default to the provided domain with /api path
+        this.defaultBaseURL = 'https://28791--main--hypertrade--admin.coder.000164.xyz/api';
         this.baseURL = baseURL || this.getStoredBaseURL() || this.defaultBaseURL;
         this.endpoints = {
-            tradingStats: '/api/trading-stats',
-            tradeHistory: '/api/trade-history',
-            chartData: '/api/chart-data',
-            accountSummary: '/api/account-summary'
+            tradingStats: '/trading-stats',
+            tradeHistory: '/trade-history',
+            chartData: '/chart-data',
+            accountSummary: '/account-summary'
         };
     }
 
@@ -162,8 +162,21 @@ class TradingAPI {
      */
     async testConnection() {
         try {
-            await this.makeRequest('/balance');
-            return { connected: true, timestamp: new Date().toISOString() };
+            // Test with the balance endpoint which should be available
+            const balanceUrl = this.baseURL.replace('/api', '') + '/balance';
+            const response = await fetch(balanceUrl, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            return { connected: true, timestamp: new Date().toISOString(), data };
         } catch (error) {
             console.error('Connection test failed:', error);
             return { connected: false, error: error.message, timestamp: new Date().toISOString() };
