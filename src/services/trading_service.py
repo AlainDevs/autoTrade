@@ -4,11 +4,15 @@ import json
 import os
 import logging
 import time
+from datetime import datetime
 from eth_account import Account
 from eth_account.signers.local import LocalAccount
 from hyperliquid.exchange import Exchange
 from hyperliquid.info import Info
 from hyperliquid.utils import constants
+from appwrite.client import Client
+from appwrite.services.tables_db import TablesDB
+from appwrite.id import ID
 
 class TradingService:
     def __init__(self):
@@ -42,6 +46,150 @@ class TradingService:
         self.last_trade_time = {}
         self.trade_cooldown_seconds = self.config.get("trade_cooldown_seconds", 5)
         logging.info(f"Trade cooldown set to {self.trade_cooldown_seconds} seconds")
+        
+        # Initialize Appwrite for trade logging
+        self._init_appwrite()
+
+    def _init_appwrite(self):
+        """Initialize Appwrite client for trade logging"""
+        try:
+            # Initialize Appwrite client
+            self.appwrite_client = Client()
+            self.appwrite_client.set_endpoint(self.config['appwrite_endpoint'])
+            self.appwrite_client.set_project(self.config['appwrite_project_id'])
+            self.appwrite_client.set_key(self.config['appwrite_api_secret'])
+            
+            # Initialize TablesDB service
+            self.tables_db = TablesDB(self.appwrite_client)
+            
+            # Load database and table IDs
+            self.database_id = self.config['appwrite_database_id']
+            self.table_id = self.config.get('appwrite_table_id', 'trade_history')  # Default to 'trade_history'
+            
+            logging.info(f"✅ Appwrite initialized for trade logging")
+            logging.info(f"📊 Database ID: {self.database_id}")
+            logging.info(f"📋 Table ID: {self.table_id}")
+            
+        except Exception as e:
+            logging.error(f"❌ Failed to initialize Appwrite: {e}")
+            # Set to None so we can check and skip logging if Appwrite is not available
+            self.tables_db = None
+
+    def _log_trade_to_appwrite(self, trade_data):
+        """Log trade data to Appwrite database"""
+        if not self.tables_db:
+            logging.warning("⚠️ Appwrite not available, skipping trade logging")
+            return None
+            
+        try:
+            # Generate unique trade ID based on timestamp and coin
+            timestamp = datetime.now()
+            trade_id = f"TRADE_{int(timestamp.timestamp())}_{trade_data['symbol']}"
+            
+            # Prepare trade record
+            trade_record = {
+                'trade_id': trade_id,
+                'symbol': trade_data['symbol'],
+                'trade_type': trade_data['trade_type'],
+                'amount': trade_data['amount'],
+                'price': trade_data['price'],
+                'total_value': trade_data['total_value'],
+                'fees': trade_data.get('fees', 0.0),
+                'status': trade_data.get('status', 'completed'),
+                'exchange': 'hyperliquid',
+                'trade_timestamp': timestamp.isoformat()
+            }
+            
+            # Log to Appwrite
+            result = self.tables_db.create_row(
+                database_id=self.database_id,
+                table_id=self.table_id,
+                row_id=ID.unique(),
+                data=trade_record
+            )
+            
+            logging.info(f"✅ Trade logged to Appwrite: {trade_id}")
+            return result
+            
+        except Exception as e:
+            logging.error(f"❌ Failed to log trade to Appwrite: {e}")
+            return None
+
+    def get_trade_history(self, limit=50, symbol=None):
+        """Retrieve trade history from Appwrite"""
+        if not self.tables_db:
+            logging.warning("⚠️ Appwrite not available, cannot retrieve trade history")
+            return []
+            
+        try:
+            # Build queries
+            queries = []
+            if symbol:
+                # Add symbol filter if specified
+                from appwrite.query import Query
+                queries.append(Query.equal("symbol", symbol))
+            
+            # Add ordering and limit
+            from appwrite.query import Query
+            queries.extend([
+                Query.order_desc("trade_timestamp"),
+                Query.limit(limit)
+            ])
+            
+            # Retrieve trades
+            result = self.tables_db.list_rows(
+                database_id=self.database_id,
+                table_id=self.table_id,
+                queries=queries
+            )
+            
+            trades = result.get('rows', [])
+            logging.info(f"📊 Retrieved {len(trades)} trade records from Appwrite")
+            return trades
+            
+        except Exception as e:
+            logging.error(f"❌ Failed to retrieve trade history: {e}")
+            return []
+
+    def get_trading_stats(self):
+        """Get trading statistics from Appwrite"""
+        if not self.tables_db:
+            return {"error": "Appwrite not available"}
+            
+        try:
+            # Get all trades
+            trades = self.get_trade_history(limit=1000)  # Get more for stats
+            
+            if not trades:
+                return {"total_trades": 0}
+            
+            total_trades = len(trades)
+            total_volume = sum(float(trade.get('total_value', 0)) for trade in trades)
+            
+            # Count by type
+            buy_trades = sum(1 for trade in trades if trade.get('trade_type') == 'buy')
+            sell_trades = total_trades - buy_trades
+            
+            # Count by status
+            completed_trades = sum(1 for trade in trades if trade.get('status') == 'completed')
+            
+            # Get symbols
+            symbols = list(set(trade.get('symbol', '') for trade in trades))
+            
+            return {
+                "total_trades": total_trades,
+                "total_volume": round(total_volume, 2),
+                "buy_trades": buy_trades,
+                "sell_trades": sell_trades,
+                "completed_trades": completed_trades,
+                "success_rate": round((completed_trades / total_trades) * 100, 2) if total_trades > 0 else 0,
+                "symbols_traded": symbols,
+                "latest_trade": trades[0] if trades else None
+            }
+            
+        except Exception as e:
+            logging.error(f"❌ Failed to get trading stats: {e}")
+            return {"error": str(e)}
 
     def check_balance(self):
         """Fetches perpetual and spot balances for the configured account."""
@@ -204,6 +352,18 @@ class TradingService:
             pos_size = float(filled["totalSz"])
             entry_price = float(filled["avgPx"])
             
+            # Log trade to Appwrite
+            trade_data = {
+                'symbol': coin,
+                'trade_type': 'buy' if is_buy else 'sell',
+                'amount': pos_size,
+                'price': entry_price,
+                'total_value': pos_size * entry_price,
+                'fees': 0.0,  # Hyperliquid doesn't separate fees in this response
+                'status': 'completed'
+            }
+            self._log_trade_to_appwrite(trade_data)
+            
             tpsl_orders = self._place_tpsl_orders(data, coin, not is_buy, pos_size, entry_price, is_buy, meta)
             
             # Log successful order details
@@ -231,7 +391,41 @@ class TradingService:
         """Closes a market position."""
         coin = data["coin"]
         logging.info(f"Closing market position for {coin}")
-        return {"close_order": self.exchange.market_close(coin)}
+        
+        # Get current position info before closing for logging
+        existing_position = self._check_existing_position(coin)
+        
+        close_result = self.exchange.market_close(coin)
+        
+        # Log the position closure if successful and we had position info
+        if close_result.get("status") == "ok" and existing_position.get("has_position"):
+            # Try to extract close price from the response
+            close_price = None
+            if "filled" in close_result.get("response", {}).get("data", {}).get("statuses", [{}])[0]:
+                filled = close_result["response"]["data"]["statuses"][0]["filled"]
+                close_price = float(filled["avgPx"])
+            
+            # If we can't get close price from response, use current market price
+            if not close_price:
+                try:
+                    close_price = float(self.info.all_mids()[coin])
+                except:
+                    close_price = 0.0  # Fallback
+            
+            # Log closure as a trade
+            trade_data = {
+                'symbol': coin,
+                'trade_type': 'sell' if existing_position["is_long"] else 'buy',  # Opposite of original position
+                'amount': existing_position["size"],
+                'price': close_price,
+                'total_value': existing_position["size"] * close_price,
+                'fees': 0.0,
+                'status': 'completed'
+            }
+            self._log_trade_to_appwrite(trade_data)
+            logging.info(f"Position closure logged for {coin}")
+        
+        return {"close_order": close_result}
 
     def _parse_price_or_percentage(self, value, entry_price, is_buy, is_take_profit):
         """
