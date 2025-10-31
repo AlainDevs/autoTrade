@@ -8,6 +8,9 @@ class TradingDashboard {
         this.allTrades = [];
         this.isLoading = false;
         
+        // Load stored settings
+        this.loadStoredSettings();
+        
         this.initialize();
     }
 
@@ -45,6 +48,43 @@ class TradingDashboard {
      * Setup all event listeners
      */
     setupEventListeners() {
+        // Settings button
+        const settingsBtn = document.getElementById('settingsBtn');
+        if (settingsBtn) {
+            settingsBtn.addEventListener('click', () => this.openSettings());
+        }
+
+        // Settings modal controls
+        const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+        if (closeSettingsBtn) {
+            closeSettingsBtn.addEventListener('click', () => this.closeSettings());
+        }
+
+        const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+        if (saveSettingsBtn) {
+            saveSettingsBtn.addEventListener('click', () => this.saveSettings());
+        }
+
+        const resetSettingsBtn = document.getElementById('resetSettingsBtn');
+        if (resetSettingsBtn) {
+            resetSettingsBtn.addEventListener('click', () => this.resetSettings());
+        }
+
+        const testConnectionBtn = document.getElementById('testConnectionBtn');
+        if (testConnectionBtn) {
+            testConnectionBtn.addEventListener('click', () => this.testConnection());
+        }
+
+        // Close modal when clicking outside
+        const settingsModal = document.getElementById('settingsModal');
+        if (settingsModal) {
+            settingsModal.addEventListener('click', (e) => {
+                if (e.target === settingsModal) {
+                    this.closeSettings();
+                }
+            });
+        }
+
         // Refresh button
         const refreshBtn = document.getElementById('refreshBtn');
         if (refreshBtn) {
@@ -568,6 +608,231 @@ class TradingDashboard {
         const lastUpdated = document.getElementById('lastUpdated');
         if (lastUpdated) {
             lastUpdated.textContent = new Date().toLocaleTimeString();
+        }
+    }
+
+    /**
+     * Open settings modal
+     */
+    openSettings() {
+        const settingsModal = document.getElementById('settingsModal');
+        const apiEndpointInput = document.getElementById('apiEndpoint');
+        const currentEndpointDiv = document.getElementById('currentEndpoint');
+        const refreshIntervalSelect = document.getElementById('refreshInterval');
+
+        if (settingsModal) {
+            // Populate current values
+            if (apiEndpointInput) {
+                apiEndpointInput.value = tradingAPI.getCurrentBaseURL();
+            }
+            if (currentEndpointDiv) {
+                currentEndpointDiv.textContent = tradingAPI.getCurrentBaseURL();
+            }
+            if (refreshIntervalSelect) {
+                refreshIntervalSelect.value = (this.refreshIntervalMs / 1000).toString();
+            }
+
+            settingsModal.classList.remove('hidden');
+        }
+    }
+
+    /**
+     * Close settings modal
+     */
+    closeSettings() {
+        const settingsModal = document.getElementById('settingsModal');
+        if (settingsModal) {
+            settingsModal.classList.add('hidden');
+        }
+    }
+
+    /**
+     * Save settings
+     */
+    async saveSettings() {
+        const apiEndpointInput = document.getElementById('apiEndpoint');
+        const refreshIntervalSelect = document.getElementById('refreshInterval');
+
+        if (apiEndpointInput && refreshIntervalSelect) {
+            const newEndpoint = apiEndpointInput.value.trim();
+            const newInterval = parseInt(refreshIntervalSelect.value) * 1000;
+
+            // Validate URL
+            if (newEndpoint && !this.isValidUrl(newEndpoint)) {
+                alert('Please enter a valid URL');
+                return;
+            }
+
+            // Update API endpoint
+            if (newEndpoint && newEndpoint !== tradingAPI.getCurrentBaseURL()) {
+                tradingAPI.updateBaseURL(newEndpoint);
+                
+                // Test the new connection
+                const testResult = await this.testConnection(false);
+                if (!testResult) {
+                    const confirm = window.confirm(
+                        'Cannot connect to the new endpoint. Do you want to save it anyway?'
+                    );
+                    if (!confirm) {
+                        return;
+                    }
+                }
+            }
+
+            // Update refresh interval
+            if (newInterval !== this.refreshIntervalMs) {
+                this.refreshIntervalMs = newInterval;
+                this.startAutoRefresh(); // Restart with new interval
+                
+                // Store in localStorage
+                try {
+                    localStorage.setItem('autoTrade_refreshInterval', newInterval.toString());
+                } catch (error) {
+                    console.warn('Cannot store refresh interval:', error);
+                }
+            }
+
+            this.closeSettings();
+            this.showNotification('Settings saved successfully!', 'success');
+            
+            // Reload data with new settings
+            this.loadAllData();
+        }
+    }
+
+    /**
+     * Reset settings to default
+     */
+    resetSettings() {
+        const confirm = window.confirm('Reset all settings to default values?');
+        if (confirm) {
+            tradingAPI.resetToDefault();
+            this.refreshIntervalMs = 30000;
+            
+            // Clear localStorage
+            try {
+                localStorage.removeItem('autoTrade_refreshInterval');
+            } catch (error) {
+                console.warn('Cannot clear localStorage:', error);
+            }
+
+            this.closeSettings();
+            this.startAutoRefresh();
+            this.showNotification('Settings reset to default', 'info');
+            this.loadAllData();
+        }
+    }
+
+    /**
+     * Test API connection
+     */
+    async testConnection(showResult = true) {
+        const testBtn = document.getElementById('testConnectionBtn');
+        
+        if (testBtn) {
+            testBtn.classList.add('testing');
+            testBtn.textContent = 'Testing...';
+        }
+
+        try {
+            const result = await tradingAPI.testConnection();
+            
+            if (showResult) {
+                if (result.connected) {
+                    this.showNotification('Connection successful!', 'success');
+                } else {
+                    this.showNotification(`Connection failed: ${result.error}`, 'error');
+                }
+            }
+
+            return result.connected;
+        } catch (error) {
+            if (showResult) {
+                this.showNotification(`Connection test failed: ${error.message}`, 'error');
+            }
+            return false;
+        } finally {
+            if (testBtn) {
+                testBtn.classList.remove('testing');
+                testBtn.textContent = 'Test Connection';
+            }
+        }
+    }
+
+    /**
+     * Validate URL
+     */
+    isValidUrl(string) {
+        try {
+            new URL(string);
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    /**
+     * Show notification
+     */
+    showNotification(message, type = 'info') {
+        // Create notification element if it doesn't exist
+        let notification = document.getElementById('notification');
+        if (!notification) {
+            notification = document.createElement('div');
+            notification.id = 'notification';
+            notification.className = 'notification';
+            notification.style.cssText = `
+                position: fixed;
+                top: 80px;
+                right: 20px;
+                padding: 1rem 1.5rem;
+                border-radius: 8px;
+                color: white;
+                font-weight: 500;
+                z-index: 1001;
+                display: none;
+                max-width: 300px;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            `;
+            document.body.appendChild(notification);
+        }
+
+        // Set colors based on type
+        let backgroundColor;
+        switch (type) {
+            case 'success':
+                backgroundColor = '#48bb78';
+                break;
+            case 'error':
+                backgroundColor = '#f56565';
+                break;
+            case 'info':
+            default:
+                backgroundColor = '#4299e1';
+                break;
+        }
+
+        notification.textContent = message;
+        notification.style.backgroundColor = backgroundColor;
+        notification.style.display = 'block';
+
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+            notification.style.display = 'none';
+        }, 3000);
+    }
+
+    /**
+     * Load stored settings
+     */
+    loadStoredSettings() {
+        try {
+            const storedInterval = localStorage.getItem('autoTrade_refreshInterval');
+            if (storedInterval) {
+                this.refreshIntervalMs = parseInt(storedInterval);
+            }
+        } catch (error) {
+            console.warn('Cannot load stored settings:', error);
         }
     }
 

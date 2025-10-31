@@ -18,6 +18,10 @@
                     AutoTrade Dashboard
                 </h1>
                 <div class="header-actions">
+                    <button id="settingsBtn" class="settings-btn" title="Settings">
+                        <span class="settings-icon">⚙️</span>
+                        Settings
+                    </button>
                     <button id="refreshBtn" class="refresh-btn" title="Refresh Data">
                         <span class="refresh-icon">🔄</span>
                         Refresh
@@ -33,6 +37,46 @@
         <div id="loadingOverlay" class="loading-overlay">
             <div class="loading-spinner"></div>
             <p>Loading trading data...</p>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settingsModal" class="settings-modal hidden">
+            <div class="settings-content">
+                <div class="settings-header">
+                    <h3>Dashboard Settings</h3>
+                    <button id="closeSettingsBtn" class="close-btn">&times;</button>
+                </div>
+                <div class="settings-body">
+                    <div class="setting-group">
+                        <label for="apiEndpoint">API Endpoint URL:</label>
+                        <input type="url" id="apiEndpoint" class="api-endpoint-input"
+                               placeholder="https://your-domain.com">
+                        <div class="setting-help">
+                            Enter your AutoTrade server URL. Default: https://28791--main--hypertrade--admin.coder.000164.xyz
+                        </div>
+                    </div>
+                    <div class="setting-group">
+                        <label>Current Endpoint:</label>
+                        <div id="currentEndpoint" class="current-endpoint">--</div>
+                    </div>
+                    <div class="setting-group">
+                        <label for="refreshInterval">Auto-refresh Interval (seconds):</label>
+                        <select id="refreshInterval" class="refresh-interval-select">
+                            <option value="15">15 seconds</option>
+                            <option value="30" selected>30 seconds</option>
+                            <option value="60">1 minute</option>
+                            <option value="120">2 minutes</option>
+                            <option value="300">5 minutes</option>
+                            <option value="0">Disabled</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="settings-footer">
+                    <button id="resetSettingsBtn" class="reset-btn">Reset to Default</button>
+                    <button id="testConnectionBtn" class="test-btn">Test Connection</button>
+                    <button id="saveSettingsBtn" class="save-btn">Save Settings</button>
+                </div>
+            </div>
         </div>
 
         <!-- Error Message -->

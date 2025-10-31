@@ -37,16 +37,26 @@ poetry run gunicorn --bind 0.0.0.0:28791 "run:app"
 Open your web browser and navigate to:
 
 ```
+https://28791--main--hypertrade--admin.coder.000164.xyz/dashboard
+```
+
+Or for local development:
+```
 http://localhost:28791/dashboard
 ```
 
-### 3. Test the Installation
+### 3. Configure API Endpoint (if needed)
 
-Run the test script to verify everything is working:
+The dashboard now supports configurable API endpoints:
 
-```bash
-python test_dashboard.py
-```
+1. Click the **Settings** button (⚙️) in the top-right corner
+2. Enter your AutoTrade server URL in the "API Endpoint URL" field
+3. Click "Test Connection" to verify connectivity
+4. Click "Save Settings" to apply changes
+
+**Default endpoint**: `https://28791--main--hypertrade--admin.coder.000164.xyz`
+
+Settings are automatically saved in your browser's local storage.
 
 ## 📊 Dashboard Sections
 

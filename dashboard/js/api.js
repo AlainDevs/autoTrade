@@ -1,13 +1,62 @@
 // API Module - Handles all communication with the Flask backend
 class TradingAPI {
     constructor(baseURL = '') {
-        this.baseURL = baseURL;
+        // Default to the provided domain, fallback to localhost
+        this.defaultBaseURL = 'https://28791--main--hypertrade--admin.coder.000164.xyz';
+        this.baseURL = baseURL || this.getStoredBaseURL() || this.defaultBaseURL;
         this.endpoints = {
             tradingStats: '/api/trading-stats',
             tradeHistory: '/api/trade-history',
             chartData: '/api/chart-data',
             accountSummary: '/api/account-summary'
         };
+    }
+
+    /**
+     * Get stored base URL from localStorage
+     */
+    getStoredBaseURL() {
+        try {
+            return localStorage.getItem('autoTrade_apiEndpoint');
+        } catch (error) {
+            console.warn('Cannot access localStorage:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Store base URL in localStorage
+     */
+    setStoredBaseURL(url) {
+        try {
+            localStorage.setItem('autoTrade_apiEndpoint', url);
+            this.baseURL = url;
+            console.log(`API endpoint updated to: ${url}`);
+        } catch (error) {
+            console.warn('Cannot store in localStorage:', error);
+        }
+    }
+
+    /**
+     * Update the base URL for API calls
+     */
+    updateBaseURL(newBaseURL) {
+        this.baseURL = newBaseURL;
+        this.setStoredBaseURL(newBaseURL);
+    }
+
+    /**
+     * Get current base URL
+     */
+    getCurrentBaseURL() {
+        return this.baseURL;
+    }
+
+    /**
+     * Reset to default URL
+     */
+    resetToDefault() {
+        this.updateBaseURL(this.defaultBaseURL);
     }
 
     /**
